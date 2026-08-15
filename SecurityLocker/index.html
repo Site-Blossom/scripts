@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Locker Loadout Builder</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+    background: #fff; color: #000; margin: 0; padding: 32px;
+    max-width: 900px; margin: 0 auto; line-height: 1.5;
+  }
+  h1 { font-size: 22px; border-bottom: 2px solid #000; padding-bottom: 8px; }
+  h2 { font-size: 16px; margin-top: 32px; text-transform: uppercase; letter-spacing: 1px; }
+  p.note { font-size: 13px; color: #444; }
+  .block { border: 1px solid #000; padding: 14px; margin: 12px 0; }
+  .loadout { border: 1px dashed #000; padding: 10px; margin: 10px 0; }
+  label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 8px; }
+  input {
+    width: 100%; padding: 7px; border: 1px solid #000; background: #fff; color: #000;
+    font-family: inherit; font-size: 14px; margin-top: 2px;
+  }
+  .row { display: flex; gap: 10px; }
+  .row > div { flex: 1; }
+  button {
+    border: 1px solid #000; background: #fff; color: #000; padding: 7px 14px;
+    font-family: inherit; font-size: 13px; cursor: pointer; margin-top: 10px;
+  }
+  button:hover { background: #000; color: #fff; }
+  button.small { padding: 3px 9px; font-size: 12px; margin: 0; }
+  .block-head { display: flex; justify-content: space-between; align-items: center; }
+  textarea {
+    width: 100%; height: 320px; border: 1px solid #000; padding: 12px;
+    font-family: ui-monospace, Consolas, monospace; font-size: 13px; margin-top: 10px;
+    white-space: pre; overflow: auto;
+  }
+  .hint { font-size: 11px; color: #666; margin-top: 1px; }
+</style>
+</head>
+<body>
+
+<h1>Locker Loadout Builder</h1>
+<p class="note">Fill this in, press <b>Generate</b> at the bottom, then copy the code into the top of <code>security_locker.lua</code>. Keep loadout and team names free of numbers.</p>
+<ol class="note" style="border:1px solid #000; padding:14px 14px 14px 34px; background:#fafafa;">
+  <li>Make a <b>team</b> and add its <b>loadouts</b>.</li>
+  <li>Make a <b>locker</b>, and set its <b>team</b> to the <b>exact same name</b> as the team you made above.</li>
+  <li>Press <b>Generate</b>, <b>Copy</b>, and paste it into the script.</li>
+</ol>
+
+<h2>Teams</h2>
+<p class="note">Each team has one or more loadouts. Players on that team pick from these.</p>
+<div id="teams"></div>
+<button onclick="addTeam()">+ Add Team</button>
+
+<h2>Personnel by User ID</h2>
+<p class="note">Extra loadouts only a specific User ID can pick, at their own team's locker.</p>
+<div id="ids"></div>
+<button onclick="addId()">+ Add User ID</button>
+
+<h2>Lockers</h2>
+<p class="note">Match each locker part name in your map to the team it belongs to. The <b>team here must be spelled exactly</b> like the team you made above.</p>
+<div id="lockers"></div>
+<button onclick="addLocker()">+ Add Locker</button>
+
+<h2>Output</h2>
+<button onclick="generate()">Generate</button>
+<button onclick="copyOut()">Copy</button>
+<textarea id="out" readonly placeholder="Press Generate..."></textarea>
+
+<script>
+// ---------- builders for the loadout sub-form ----------
+function loadoutNode() {
+  const d = document.createElement('div');
+  d.className = 'loadout';
+  d.innerHTML = `
+    <div class="block-head"><b>Loadout</b><button class="small" onclick="this.closest('.loadout').remove()">remove</button></div>
+    <label>Name (typed in chat, no numbers)</label><input class="l-name" placeholder="Heavy">
+    <div class="row">
+      <div><label>Morph</label><input class="l-morph" placeholder="MTF"><div class="hint">built-in :morphs name</div></div>
+      <div><label>Max HP</label><input class="l-hp" placeholder="150"></div>
+    </div>
+    <label>Weapons (comma separated)</label><input class="l-weapons" placeholder="M4, L3 Keycard">
+    <div class="row">
+      <div><label>Shirt ID</label><input class="l-shirt" placeholder="optional"></div>
+      <div><label>Pants ID</label><input class="l-pants" placeholder="optional"></div>
+    </div>
+    <label>Hat IDs (comma separated, optional)</label><input class="l-hats" placeholder="optional">
+    <div class="row">
+      <div><label>Skin colour</label><input class="l-skin" placeholder="optional e.g. green"></div>
+      <div><label>Scale</label><input class="l-scale" placeholder="optional e.g. 1 1 1 1.2"></div>
+    </div>`;
+  return d;
+}
+
+// ---------- Teams ----------
+function addTeam() {
+  const d = document.createElement('div');
+  d.className = 'block';
+  d.innerHTML = `
+    <div class="block-head"><b>Team</b><button class="small" onclick="this.closest('.block').remove()">remove team</button></div>
+    <label>Team name (exact in-game name)</label><input class="t-name" placeholder="MTF">
+    <div class="loadouts"></div>
+    <button class="small" onclick="this.previousElementSibling.appendChild(loadoutNode())">+ Add Loadout</button>`;
+  document.getElementById('teams').appendChild(d);
+  d.querySelector('.loadouts').appendChild(loadoutNode());
+}
+
+// ---------- ID loadouts ----------
+function addId() {
+  const d = document.createElement('div');
+  d.className = 'block';
+  d.innerHTML = `
+    <div class="block-head"><b>User ID</b><button class="small" onclick="this.closest('.block').remove()">remove</button></div>
+    <label>User ID (numbers)</label><input class="i-id" placeholder="123456789">
+    <div class="loadouts"></div>
+    <button class="small" onclick="this.previousElementSibling.appendChild(loadoutNode())">+ Add Loadout</button>`;
+  document.getElementById('ids').appendChild(d);
+  d.querySelector('.loadouts').appendChild(loadoutNode());
+}
+
+// ---------- Lockers ----------
+function addLocker() {
+  const d = document.createElement('div');
+  d.className = 'block';
+  d.innerHTML = `
+    <div class="block-head"><b>Locker</b><button class="small" onclick="this.closest('.block').remove()">remove</button></div>
+    <div class="row">
+      <div><label>Part name</label><input class="k-part" placeholder="MTFLocker"></div>
+      <div><label>Team</label><input class="k-team" placeholder="MTF"></div>
+    </div>
+    <label>Type</label>
+    <select class="k-type" style="width:100%; padding:7px; border:1px solid #000; background:#fff; font-family:inherit; font-size:14px; margin-top:2px;">
+      <option value="false">Regular (other teams can steal from it)</option>
+      <option value="true">Exclusive (only this team can use it)</option>
+    </select>`;
+  document.getElementById('lockers').appendChild(d);
+}
+
+// ---------- generate Lua ----------
+function esc(s){ return (s||'').replace(/\\/g,'\\\\').replace(/"/g,'\\"'); }
+function val(node, cls){ const e = node.querySelector(cls); return e ? e.value.trim() : ''; }
+function luaList(csv){
+  const items = csv.split(',').map(s=>s.trim()).filter(s=>s);
+  return '{ ' + items.map(i=>`"${esc(i)}"`).join(', ') + ' }';
+}
+function loadoutLua(node){
+  const name = val(node,'.l-name'); if(!name) return null;
+  const p = [`name = "${esc(name)}"`];
+  const morph = val(node,'.l-morph'); if(morph) p.push(`morph = "${esc(morph)}"`);
+  const shirt = val(node,'.l-shirt'); if(shirt) p.push(`shirt = "${esc(shirt)}"`);
+  const pants = val(node,'.l-pants'); if(pants) p.push(`pants = "${esc(pants)}"`);
+  const hp = val(node,'.l-hp'); if(hp) p.push(`hp = ${parseInt(hp)||0}`);
+  const weapons = val(node,'.l-weapons'); if(weapons) p.push(`weapons = ${luaList(weapons)}`);
+  const hats = val(node,'.l-hats'); if(hats) p.push(`hats = ${luaList(hats)}`);
+  const skin = val(node,'.l-skin'); if(skin) p.push(`skin = "${esc(skin)}"`);
+  const scale = val(node,'.l-scale'); if(scale) p.push(`scale = "${esc(scale)}"`);
+  return `        { ${p.join(', ')} },`;
+}
+
+function generate(){
+  let out = '';
+
+  // TEAM_LOADOUTS
+  out += 'local TEAM_LOADOUTS = {\n';
+  document.querySelectorAll('#teams .block').forEach(t => {
+    const tn = val(t,'.t-name'); if(!tn) return;
+    out += `    ["${esc(tn)}"] = {\n`;
+    t.querySelectorAll('.loadout').forEach(l => { const s = loadoutLua(l); if(s) out += s + '\n'; });
+    out += '    },\n';
+  });
+  out += '}\n\n';
+
+  // ID_LOADOUTS
+  out += 'local ID_LOADOUTS = {\n';
+  document.querySelectorAll('#ids .block').forEach(t => {
+    const id = val(t,'.i-id'); if(!id) return;
+    out += `    [${parseInt(id)||0}] = {\n`;
+    t.querySelectorAll('.loadout').forEach(l => { const s = loadoutLua(l); if(s) out += s + '\n'; });
+    out += '    },\n';
+  });
+  out += '}\n\n';
+
+  // LOCKERS
+  out += 'local LOCKERS = {\n';
+  document.querySelectorAll('#lockers .block').forEach(k => {
+    const part = val(k,'.k-part'), team = val(k,'.k-team');
+    const excl = k.querySelector('.k-type') ? k.querySelector('.k-type').value : 'false';
+    if(part && team) out += `    ["${esc(part)}"] = { team = "${esc(team)}", exclusive = ${excl} },\n`;
+  });
+  out += '}\n';
+
+  document.getElementById('out').value = out;
+}
+
+function copyOut(){
+  const t = document.getElementById('out');
+  t.select();
+  document.execCommand('copy');
+}
+
+// start with one of each so it's not empty
+addTeam();
+addLocker();
+</script>
+</body>
+</html>
